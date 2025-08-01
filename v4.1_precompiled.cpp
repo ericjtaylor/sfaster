@@ -203,22 +203,37 @@ void writeSolution(std::vector<piece>& pieceList){//stringifies and writes one s
         }
     }
 }
-bitmap rotations[7][4]={{0x3c00000llu,0x801002004llu,0x7800llu,0x400801002llu},{0x403800llu,0x1801002llu,0x3804llu,0x801003llu},{0x1003800llu,0x801006llu,0x3801llu,0xc01002llu},{0x1803000llu,0x1803000llu,0x1803000llu,0x1803000llu},{0x1801800llu,0x803004llu,0x3003llu,0x401802llu},{0x803800llu,0x803002llu,0x3802llu,0x801802llu},{0xc03000llu,0x1003002llu,0x1806llu,0x801801llu}};
-//IJLOSTZ
-//https://static.wikia.nocookie.net/tetrisconcept/images/3/3d/SRS-pieces.png/revision/latest?cb=20060626173148
-constexpr char wallKicks[4][5]={//srs shifts
-    {0,-1,-1+1*11,-2*11,-1-2*11},//0>>1
-    {0,1,1-1*11,2*11,1+2*11},//1>>2
-    {0,1,1+1*11,-2*11,1-2*11},//2>>3
-    {0,-1,-1-1*11,2*11,-1+2*11}//3>>0
-};//going the other way is just *=-1
-constexpr char I_wallKicks[4][5]={//I pieces have a unique table
-    {0,-2,1,-2-1*11,1+2*11},//0>>1
-    {0,-1,2,-1+2*11,2-1*11},//1>>2
-    {0,2,-1,2+1*11,-1-2*11},//2>>3
-    {0,1,-2,1-2*11,-2+1*11}//3>>0
+bitmap rotations[7][4]={
+    {0x3c00000llu,0x801002004llu,0x3c00000llu,0x801002004llu},
+    {0x807llu,0x1801002llu,0x3804llu,0x801003llu},
+    {0x2007llu,0x801006llu,0x3801llu,0xc01002llu},
+    {0x1803000llu,0x1803000llu,0x1803000llu,0x1803000llu},
+    {0x3003llu,0x401802llu,0x3003llu,0x401802llu},
+    {0x1007llu,0x803002llu,0x3802llu,0x801802llu},
+    {0x1806llu,0x1003002llu,0x1806llu,0x1003002llu}
 };
-//https://tetris.fandom.com/wiki/SRS#Wall_Kicks
+//IJLOSTZ
+//https://tetris.wiki/images/b/b5/Tgm_basic_ars_description.png
+
+constexpr char wallKicks[4][5]={//ars shifts
+    {0,  1,  -1, 0, 0},//0>>1
+    {0,  1,  -1, 0, 0},//1>>2
+    {0,  1,  -1, 0, 0},//2>>3
+    {0,  1,  -1, 0, 0} //3>>0
+};//going the other way is **NO DIFFERENT**
+constexpr char T_wallKicks[4][5]={//ars shifts
+    {0,  1,  -1,    0, 0},//0>>1
+    {0,  1,  -1, 1*11, 0},//1>>2
+    {0,  1,  -1, 1*11, 0},//2>>3
+    {0,  1,  -1,    0, 0} //3>>0
+};//going the other way is **NO DIFFERENT**
+constexpr char I_wallKicks[4][5]={//ars shifts
+    {0, 1*11, 2*11,   0, 0},//0>>1
+    {0,    1,   -1,   2, 0},//1>>2
+    {0, 1*11, 2*11,   0, 0},//2>>3
+    {0,    1,   -1,   2, 0} //3>>0
+};//going the other way is **NO DIFFERENT**
+//https://tetris.wiki/Arika_Rotation_System#Kicks
 
 std::array<std::vector<char>,4> jstris180={
     std::vector<char>{0,1*11},//0>>2
@@ -270,7 +285,18 @@ bool unplace(char piece, char rot, int pos, bitmap matrix, std::set<int>& dp){//
     
     //rotations (needs some fixing?)
     if (piece==3) return false;//O doesn't need to rotate
-    const char (*kickTable)[5]=(piece==0?I_wallKicks:wallKicks);//I pieces have a unique kick table
+    const char (*kickTable)[5];
+    switch (piece) {
+        case 0:
+            kickTable = I_wallKicks;
+            break;
+        case 5:
+            kickTable = T_wallKicks;
+            break;
+        default:
+            kickTable = wallKicks;
+            break;
+    }
     bitmap rotCW = rotations[piece][(rot+1)&3];
     bitmap rotCCW = rotations[piece][(rot-1)&3]; 
     if (pos>=0){
@@ -312,7 +338,7 @@ bool unplace(char piece, char rot, int pos, bitmap matrix, std::set<int>& dp){//
     }
     for (int k=0;k<5;k++){//eg 1>>0 backwards (unrotating from 0 to 1)
         bitmap kicked = rotCCW;
-        int kick = -kickTable[(rot-1)&3][k];
+        int kick = kickTable[(rot-1)&3][k];
         if (kick>=0) kicked<<=kick;//double neg: 2>>1 table, reversed
         else kicked>>=(-kick);
         //if ((kick>=0 && !(rotCCW<<kick & matrix)) || (kick<0 && !(rotCCW>>(-kick) & matrix))){
@@ -326,7 +352,7 @@ bool unplace(char piece, char rot, int pos, bitmap matrix, std::set<int>& dp){//
 
             bool flipsBack=true;
             for (int k2=0;k2<k;k2++){//make sure it would rotate forwards to here
-                int kick2 = kickTable[(rot-1)&3][k2];
+                int kick2 = -kickTable[(rot-1)&3][k2];
                 bitmap kicked2=rotations[piece][rot];
                 if (pos+kick+kick2>=0) kicked2<<=pos+kick+kick2;
                 else{
@@ -389,25 +415,25 @@ bool unplace(char piece, char rot, int pos, bitmap matrix){//overloaded function
 }
 
 std::map<int,std::vector<int>> startShifts = {//converts v4 coordinate system to guideline coordinate system
-    {0,{-22,-11}}//Ir0 (srs rots)
-    ,{0|1<<8,{-2,-1}}//Ir1
-    ,{1,{-11}}//Jr0
+    {0,{-22}}//Ir0 (srs rots)
+    ,{0|1<<8,{-2}}//Ir1
+    ,{1,{0}}//Jr0
     ,{1|1<<8,{-1}}//Jr1
     ,{1|2<<8,{-2}}//Jr2
     ,{1|3<<8,{0}}//Jr3
-    ,{2,{-11}}//Lr0
+    ,{2,{0}}//Lr0
     ,{2|1<<8,{-1}}//Lr1
     ,{2|2<<8,{0}}//Lr2
     ,{2|3<<8,{-1}}//Lr3
     ,{3,{-12}}//Or0
-    ,{4,{-11,0}}//Sr0
-    ,{4|1<<8,{-2,-1}}//Sr1
-    ,{5,{-11}}//Tr0
+    ,{4,{0}}//Sr0
+    ,{4|1<<8,{-1}}//Sr1
+    ,{5,{0}}//Tr0
     ,{5|1<<8,{-1}}//Tr1
     ,{5|2<<8,{-1}}//Tr2
     ,{5|3<<8,{-1}}//Tr3
-    ,{6,{-12,-1}}//Zr0
-    ,{6|1<<8,{-1,0}}//Zr1
+    ,{6,{-1}}//Zr0
+    ,{6|1<<8,{-1}}//Zr1
 };
 struct patternNode{
     int from;//bitmap
